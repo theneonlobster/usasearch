@@ -43,7 +43,7 @@ function usasearch_hosted_form_alter(&$form, &$form_state, $form_id) {
 
     // Set action method, location and read affiliate from variable.
     $form['#method'] = 'get';
-    $form['#action'] = $action_domain . '/search';
+    $form['#action'] = '//' . $action_domain . '/search';
 
     $form['affiliate']['#type'] = 'hidden';
     // Check for affiliate_name variable before printing the affiliate form
