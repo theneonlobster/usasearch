@@ -12,20 +12,9 @@ function usasearch_api_node_insert($node) {
   if (!variable_get("usasearch_api_index_{$node->type}_nodes", TRUE)) {
     return FALSE;
   }
-  // $document = usasearch_api_convert_node_to_document($node);
-  // usasearch_api_request('post', 'api/v1/documents', array('json' => $document->json()));
-  $payload = array(
-    "document_id" => "200",
-    "title" => "this is a fairly short title",
-    "path" => "http://www.gov.gov/cms/doc2.html",
-    "created" => "2015-05-12T22:35:09Z",
-    "description" => "some more information here on the document",
-    "content" => "the long form body of the document",
-    "promote" => false,
-    "language" => "en",
-    "tags" => "tag1, another tag",
-  );
-  usasearch_api_request('post', 'api/v1/documents', $payload);
+
+  $document = usasearch_api_convert_node_to_document($node);
+  usasearch_api_request('post', 'api/v1/documents', $document);
 }
 
 /**
@@ -37,7 +26,7 @@ function usasearch_api_node_update($node) {
   }
 
   $document = usasearch_api_convert_node_to_document($node);
-  usasearch_api_request('put', 'api/v1/documents/' . $document->getDocumentId(), array('json' => $document->json()));
+  usasearch_api_request('put', 'api/v1/documents/' . $node->nid, $document);
 }
 
 /**
@@ -49,7 +38,7 @@ function usasearch_api_node_delete($node) {
   }
 
   $document = usasearch_api_convert_node_to_document($node);
-  usasearch_api_request('delete', 'api/v1/documents/' . $document->getDocumentId());
+  usasearch_api_request('delete', 'api/v1/documents/' . $node->nid);
 }
 
 /**
@@ -67,59 +56,12 @@ function usasearch_api_node_delete($node) {
  * @see http://guzzle.readthedocs.org/en/5.3/quickstart.html
  */
 function usasearch_api_request($method, $url, $request_options = array()) {
-  // $client = new GuzzleHttp\Client(array(
-  //     'base_url' => 'https://i14y.usa.gov',
-  //     'defaults' => array(
-  //       'timeout' => 5,
-  //       'connect_timeout' => 5,
-  //       'auth' => array(variable_get('usasearch_drawer_handle', ''), variable_get('usasearch_api_password', '')),
-  //       'headers' => array('Content-Type' => 'application/json'),
-  //     ),
-
-  // Trying new things.
-  // $method = post, $url = api/v1/documents, $request_options = $payload
   $client = new Guzzle\Http\Client('https://i14y.usa.gov');
-  // $request = $client->$method($url);
-  $request = $client->post($url, array(
+  $request = $client->$method($url, array(
     'Content-Type' => 'application/json',
-), $request_options);
-  // $request->setAuth(array('auth' => array(variable_get('usasearch_drawer_handle', ''), variable_get('usasearch_api_password', '')
-  //     'request_options' => array(
-  //       'timeout' => 5,
-  //       'connect_timeout' => 5,
-  //       'auth' => array(variable_get('usasearch_drawer_handle', ''), variable_get('usasearch_api_password', '')),
-  //       'headers' => array('Content-Type' => 'application/json'),
-  //       'body' => $request_options,
-  //     ),
-  //   )
-  // )
-  // );
+  ), $request_options);
   $request->setAuth(variable_get('usasearch_drawer_handle', ''), variable_get('usasearch_api_password', ''));
   $response = $request->send();
-
-  // try {
-  //   $response = $client->$method($url, $request_options);
-  //   watchdog('usasearch_api', 'Updating USASearch index via @method request to @url with options: !options. Got a @response_code response with body "@response_body".', array(
-  //       '@method' => $method,
-  //       '@url' => $url,
-  //       '!options' => '<pre>' . check_plain(print_r($request_options, TRUE)) . '</pre>',
-  //       '@response_code' => $response->getStatusCode(),
-  //       '@response_body' => $response->getBody(),
-  //     ), WATCHDOG_INFO);
-  // }
-  // catch(Exception$e) {
-  //   watchdog('usasearch_api', 'USA Search host server could not be reached. Error: @error', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
-  //   watchdog('usasearch_api','The JSON sent was <br />'.'<pre>' . check_plain(print_r($request_options, TRUE)) . '</pre>',array('!options' => '<pre>' . check_plain(print_r($request_options, TRUE)) . '</pre>'), WATCHDOG_ERROR);
-  //   if($e->getResponse()->getStatusCode()) {
-  //     watchdog('usasearch_api', 'Updating USASearch index via @method request to @url with options: !options. Got a @response_code response with body "@response_body".', array(
-  //         '@method' => $method,
-  //         '@url' => $url,
-  //         '!options' => '<pre>' . check_plain(print_r($request_options, TRUE)) . '</pre>',
-  //         '@response_code' => $e->getResponse()->getStatusCode(),
-  //         '@response_body' => $e->getResponse()->getBody(),
-  //     ), WATCHDOG_INFO);
-  //   }
-  // }
 }
 
 /**
@@ -142,44 +84,24 @@ function usasearch_api_preprocess_node(&$vars) {
  *   A UsaSearchDocument based on the provided $node object.
  */
 function usasearch_api_convert_node_to_document($node) {
-  $document= array(
+  global $user;
+  // Set node content property.
+  $original_uid = $user->uid;
+  $user = drupal_anonymous_user();
+  $view = node_view($node);
+  $document = array(
     "document_id" => $node->nid,
     "title" => $node->title,
     "path" => url(drupal_get_path_alias("node/{$node->nid}"), array('absolute' => TRUE)),
     "created" => date('c', $node->created),
-    // "description" => drupal_render(node_view($node, 'teaser')),
-    "description" => 'this is a muddle',
-    // "content" => drupal_render($view),
-    "content" => 'wompwompwomp',
+    // Set Description to using teaser.
+    "description" => drupal_render(node_view($node, 'teaser')),
+    "content" => drupal_render($view),
     "promote" => $node->promote,
     "language" => "en",
-    // "tags" => "tag1, another tag",
   );
-  dpm($document);
 
-  // This is the old stuff.
-  global $user;
-
-  $document = new UsaSearchDocument();
-  // $document->setDocumentId($node->nid);
-  // $document->setTitle($node->title);
-
-  // Set node content property.
-  $original_uid = $user->uid;
-
-  // $view = node_view($node);
-  $user = drupal_anonymous_user();
-  // $content = drupal_render($view);
-  // $document->setContent($content);
-
-  // Set Description to using teaser.
-  // $document->setDescription(drupal_render(node_view($node, 'teaser')));
   $user->uid = $original_uid;
-  // $document->setPath(url(drupal_get_path_alias("node/{$node->nid}"), array('absolute' => TRUE)));
-  // $document->setCreated(date('c', $node->created));
-  // $document->setPromote((bool) $node->promote);
-
-  // drupal_alter('usasearch_api_document_request', $document);
 
   return $document;
 }
